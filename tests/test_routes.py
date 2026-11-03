@@ -13,6 +13,7 @@ from tests.factories import AccountFactory
 from service.common import status  # HTTP Status Codes
 from service.models import db, Account, init_db
 from service.routes import app
+from service import talisman
 
 DATABASE_URI = os.getenv(
     "DATABASE_URI", "postgresql://postgres:postgres@localhost:5432/postgres"
@@ -32,6 +33,7 @@ class TestAccountService(TestCase):
         """Run once before all tests"""
         app.config["TESTING"] = True
         app.config["DEBUG"] = False
+        talisman.force_https = False
         app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URI
         app.logger.setLevel(logging.CRITICAL)
         init_db(app)
@@ -200,3 +202,43 @@ class TestAccountService(TestCase):
         self.assertEqual(response.status_code, 500)
         self.assertEqual(response.get_json()['status'], 500)
         self.assertNotIn('Database unavailable', response.get_json()['message'])
+
+    def test_security_headers(self):
+        """It should attach browser security headers to HTTPS responses."""
+        response = self.client.get('/', base_url='https://localhost')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['X-Frame-Options'], 'SAMEORIGIN')
+        self.assertEqual(response.headers['X-Content-Type-Options'], 'nosniff')
+        self.assertEqual(response.headers['X-XSS-Protection'], '1; mode=block')
+        self.assertIn("default-src 'self'", response.headers['Content-Security-Policy'])
+        self.assertIn('max-age=', response.headers['Strict-Transport-Security'])
+
+    def test_https_redirect(self):
+        """It should redirect insecure requests when HTTPS is required."""
+        with patch.object(talisman, 'force_https', True):
+            response = self.client.get('/accounts', base_url='http://localhost')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers['Location'], 'https://localhost/accounts')
+
+    def test_allowed_cors_origin(self):
+        """It should allow the configured frontend without credential sharing."""
+        response = self.client.get(BASE_URL, headers={'Origin': 'http://localhost:3000'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['Access-Control-Allow-Origin'], 'http://localhost:3000')
+        self.assertNotIn('Access-Control-Allow-Credentials', response.headers)
+
+    def test_unapproved_cors_origin(self):
+        """It should not grant browser access to an unapproved origin."""
+        response = self.client.get(BASE_URL, headers={'Origin': 'https://untrusted.example'})
+        self.assertNotIn('Access-Control-Allow-Origin', response.headers)
+
+    def test_cors_preflight(self):
+        """It should permit JSON requests from the configured frontend."""
+        response = self.client.options(BASE_URL, headers={
+            'Origin': 'http://localhost:3000',
+            'Access-Control-Request-Method': 'POST',
+            'Access-Control-Request-Headers': 'Content-Type',
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('POST', response.headers['Access-Control-Allow-Methods'])
+        self.assertIn('Content-Type', response.headers['Access-Control-Allow-Headers'])

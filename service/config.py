@@ -21,3 +21,7 @@ SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 # Secret for session management
 SECRET_KEY = os.getenv("SECRET_KEY", "s3cr3t-key-shhhh")
+
+# The lab may use plain HTTP locally; deployed applications default to HTTPS.
+FORCE_HTTPS = os.getenv("FORCE_HTTPS", "true").lower() == "true"
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
