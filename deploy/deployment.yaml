@@ -41,11 +41,17 @@ spec:
             httpGet:
               path: /health
               port: 8080
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
             initialDelaySeconds: 5
           livenessProbe:
             httpGet:
               path: /health
               port: 8080
+              httpHeaders:
+                - name: X-Forwarded-Proto
+                  value: https
             initialDelaySeconds: 15
           resources:
             requests:
