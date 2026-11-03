@@ -1,4 +1,6 @@
-# devops-capstone-project
+# DevOps Capstone Project
+
+[![Continuous Integration](https://github.com/axsh06/devops-capstone-project/actions/workflows/ci-build.yaml/badge.svg?branch=codex%2Fdevops-capstone)](https://github.com/axsh06/devops-capstone-project/actions/workflows/ci-build.yaml)
 
 Customer accounts REST API for the IBM DevOps capstone. The project adds account
 read, list, update, and delete endpoints to the supplied Flask and PostgreSQL
