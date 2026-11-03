@@ -8,6 +8,7 @@ Test cases can be run with the following:
 import os
 import logging
 from unittest import TestCase
+from unittest.mock import patch
 from tests.factories import AccountFactory
 from service.common import status  # HTTP Status Codes
 from service.models import db, Account, init_db
@@ -181,3 +182,21 @@ class TestAccountService(TestCase):
     def test_delete_missing_account(self):
         """It should allow repeated DELETE requests without an error."""
         self.assertEqual(self.client.delete(f'{BASE_URL}/99999').status_code, 204)
+
+    def test_unsupported_method(self):
+        """It should reject collection deletion without deleting accounts."""
+        self._create_accounts(1)
+        response = self.client.delete(BASE_URL)
+        self.assertEqual(response.status_code, 405)
+        self.assertEqual(response.get_json()['status'], 405)
+        self.assertEqual(len(self.client.get(BASE_URL).get_json()), 1)
+
+    def test_internal_server_error(self):
+        """It should return a structured error when persistence fails."""
+        with patch.dict(app.config, {'PROPAGATE_EXCEPTIONS': False}):
+            with patch('service.routes.Account.all',
+                       side_effect=RuntimeError('Database unavailable')):
+                response = self.client.get(BASE_URL)
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.get_json()['status'], 500)
+        self.assertNotIn('Database unavailable', response.get_json()['message'])
